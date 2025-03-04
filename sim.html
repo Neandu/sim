@@ -1,0 +1,531 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GTH Forest Harvest Simulator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.js"></script>
+    <script src="https://unpkg.com/papaparse@5.3.0/papaparse.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #FFD700 0%, #FFFFFF 100%);
+            color: #000000;
+        }
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header img {
+            max-width: 128px;
+            height: auto;
+        }
+        h1 {
+            color: #FFD700;
+            text-shadow: 1px 1px 3px #000000;
+            margin: 10px 0;
+        }
+        /* Redesigned Control Panel */
+        #control-panel {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            align-items: center;
+            padding: 25px;
+            background: #F5F5F5; /* Soft light gray */
+            border-radius: 20px;
+            margin-bottom: 30px;
+            border: 1px solid #E0E0E0; /* Light border */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .control-group {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            padding: 10px;
+            background: #FFFFFF; /* White for contrast */
+            border-radius: 15px;
+            border: 1px solid #FFD700; /* Subtle yellow border */
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+        }
+        button, input[type="file"], select {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            background: #FFF8E1; /* Very light yellow */
+            color: #333333; /* Soft dark gray */
+            font-weight: 600;
+            font-size: 14px;
+            transition: background 0.3s, transform 0.2s, box-shadow 0.3s;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        button:hover, input[type="file"]:hover, select:hover {
+            background: #FFD700; /* Brighter yellow on hover */
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+            color: #000000;
+        }
+        #speedControl { 
+            accent-color: #FFD700; 
+            width: 120px;
+            height: 5px;
+            background: #E0E0E0;
+            border-radius: 5px;
+        }
+        label { 
+            font-weight: 500; 
+            color: #666666; /* Softer gray */
+            font-size: 14px;
+        }
+        #simulation-section {
+            margin-bottom: 30px;
+        }
+        #map {
+            height: 600px;
+            border-radius: 10px;
+            border: 2px solid #000000;
+        }
+        #analytics-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .chart-container {
+            padding: 20px;
+            background: #FFFFFF;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border: 1px solid #FFD700;
+            transition: transform 0.3s ease, width 0.3s ease, height 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+        }
+        .chart-container.enlarged {
+            transform: scale(3);
+            width: 300px;
+            height: auto;
+            z-index: 1000;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(3);
+            background: #FFFFFF;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+        .chart-container h3 {
+            color: #FFD700;
+            margin-bottom: 10px;
+            text-shadow: 1px 1px 2px #000000;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #FFD700;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 10px;
+            border: 1px solid #000000;
+        }
+        .progress {
+            height: 100%;
+            background: #000000;
+            width: 0;
+            transition: width 0.5s ease;
+        }
+        .stats-text { 
+            font-size: 1.1em; 
+            margin: 10px 0; 
+            color: #000000; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="https://d1muf25xaso8hp.cloudfront.net/https%3A%2F%2F26d5c851018f0bdf8ea9c3b75968b2ab.cdn.bubble.io%2Ff1729188191306x619352838514832600%2FGTH%2520Logo%2520%2528Col001%2529.png?w=128&h=83&auto=compress&dpr=2&fit=max" alt="GTH Logo">
+            <h1>GTH Forest Harvest Simulator</h1>
+        </div>
+
+
+        <!-- 1. Redesigned Simulation Control Panel -->
+        <section id="control-panel">
+            <div class="control-group">
+                <input type="file" id="csvUpload" accept=".csv">
+            </div>
+            <div class="control-group">
+                <button onclick="startSimulation()">Start</button>
+                <button onclick="pauseSimulation()">Pause</button>
+                <button onclick="stopSimulation()">Stop</button>
+            </div>
+            <div class="control-group">
+                <input type="range" id="speedControl" min="1" max="20" value="5" onchange="adjustSpeed(this.value)">
+                <label for="speedControl">Speed (1-20)</label>
+            </div>
+            <div class="control-group">
+                <select id="driverFilter" onchange="filterByDriver(this.value)">
+                    <option value="all">All Drivers</option>
+                </select>
+                <label for="driverFilter">Filter Driver</label>
+            </div>
+            <div class="control-group">
+                <button onclick="stepForward()">Step Forward</button>
+                <button onclick="stepBackward()">Step Backward</button>
+            </div>
+        </section>
+
+
+        <!-- 2. Simulation Map -->
+        <section id="simulation-section">
+            <div id="map"></div>
+        </section>
+
+
+        <!-- 3. Analytics Section -->
+        <section id="analytics-section">
+            <div class="chart-container" onclick="toggleEnlarge(this)">
+                <h3>Efficiency Trend</h3>
+                <canvas id="efficiencyChart"></canvas>
+            </div>
+            <div class="chart-container" onclick="toggleEnlarge(this)">
+                <h3>Species Distribution</h3>
+                <canvas id="speciesPieChart"></canvas>
+            </div>
+            <div class="chart-container" onclick="toggleEnlarge(this)">
+                <h3>Harvest Time Trend</h3>
+                <canvas id="timeLineChart"></canvas>
+            </div>
+            <div class="chart-container" onclick="toggleEnlarge(this)">
+                <h3>Simulation Progress</h3>
+                <div class="stats-text">Progress: <span id="progress-text">0%</span></div>
+                <div class="progress-bar"><div class="progress" id="progress-bar"></div></div>
+                <div class="stats-text">Current Tree: <span id="current-tree">-</span></div>
+                <div class="stats-text">Total Trees: <span id="total-trees">0</span></div>
+                <div class="stats-text">Average Efficiency: <span id="avg-efficiency">0</span></div>
+            </div>
+            <div class="chart-container" onclick="toggleEnlarge(this)">
+                <h3>Log Length Distribution</h3>
+                <canvas id="logLengthBarChart"></canvas>
+            </div>
+            <div class="chart-container" onclick="toggleEnlarge(this)">
+                <h3>Driver Performance</h3>
+                <canvas id="driverBarChart"></canvas>
+            </div>
+            <div class="chart-container" onclick="toggleEnlarge(this)">
+                <h3>Efficiency vs Time</h3>
+                <canvas id="effTimeScatterChart"></canvas>
+            </div>
+            <div class="chart-container" onclick="toggleEnlarge(this)">
+                <h3>Harvest Pace (Trees/Min)</h3>
+                <canvas id="harvestPaceChart"></canvas>
+            </div>
+        </section>
+    </div>
+
+
+    <script>
+        let trees = [], filteredTrees = [], simulationSpeed = 5, interval, currentIndex = 0;
+        let map = L.map('map').setView([0, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+        let treeMarkers = [], efficiencyChart, speciesPieChart, timeLineChart, logLengthBarChart, driverBarChart, effTimeScatterChart, harvestPaceChart;
+
+
+        function loadCSV(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    processCSVData(results.data);
+                }
+            });
+        }
+
+
+        function processCSVData(data) {
+            trees = data.map(row => ({
+                lat: parseFloat(row.Latitude),
+                lon: parseFloat(row.Longitude),
+                species: row.Species,
+                logLength: parseFloat(row["Log length (m)"]),
+                start: parseFloat(row.Start),
+                time: parseFloat(row["Time (min)"]),
+                driver: row.Driver,
+                efficiency: parseFloat(row.Efficiency)
+            }));
+            filteredTrees = [...trees];
+            updateMapAndStats();
+            populateDriverFilter();
+            initCharts();
+        }
+
+
+        function updateMapAndStats() {
+            treeMarkers.forEach(marker => map.removeLayer(marker));
+            treeMarkers = filteredTrees.map(tree => {
+                let marker = L.marker([tree.lat, tree.lon]).addTo(map);
+                marker.bindPopup(`<b>${tree.species}</b><br>Cut by: ${tree.driver}<br>Time: ${tree.time} min<br>Efficiency: ${tree.efficiency}`);
+                return marker;
+            });
+            if (filteredTrees.length > 0) map.fitBounds(filteredTrees.map(t => [t.lat, t.lon]));
+            document.getElementById('total-trees').textContent = filteredTrees.length;
+            const avgEff = filteredTrees.reduce((sum, t) => sum + t.efficiency, 0) / filteredTrees.length || 0;
+            document.getElementById('avg-efficiency').textContent = avgEff.toFixed(2);
+        }
+
+
+        function populateDriverFilter() {
+            const drivers = [...new Set(trees.map(t => t.driver))];
+            const select = document.getElementById('driverFilter');
+            select.innerHTML = '<option value="all">All Drivers</option>';
+            drivers.forEach(driver => {
+                const option = document.createElement('option');
+                option.value = driver;
+                option.textContent = driver;
+                select.appendChild(option);
+            });
+        }
+
+
+        function filterByDriver(driver) {
+            stopSimulation();
+            filteredTrees = driver === 'all' ? [...trees] : trees.filter(t => t.driver === driver);
+            currentIndex = 0;
+            updateMapAndStats();
+            initCharts();
+        }
+
+
+        function initCharts() {
+            if (efficiencyChart) efficiencyChart.destroy();
+            efficiencyChart = new Chart(document.getElementById('efficiencyChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: filteredTrees.map((_, i) => `Tree ${i + 1}`),
+                    datasets: [{
+                        label: 'Efficiency',
+                        data: filteredTrees.map(t => t.efficiency),
+                        borderColor: '#000000',
+                        backgroundColor: '#FFD700',
+                        fill: false,
+                        tension: 0.1
+                    }]
+                },
+                options: { scales: { y: { beginAtZero: true } } }
+            });
+
+
+            if (speciesPieChart) speciesPieChart.destroy();
+            const speciesCount = filteredTrees.reduce((acc, t) => {
+                acc[t.species] = (acc[t.species] || 0) + 1;
+                return acc;
+            }, {});
+            speciesPieChart = new Chart(document.getElementById('speciesPieChart').getContext('2d'), {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(speciesCount),
+                    datasets: [{
+                        data: Object.values(speciesCount),
+                        backgroundColor: ['#FFD700', '#666666', '#000000', '#CCCCCC', '#333333']
+                    }]
+                }
+            });
+
+
+            if (timeLineChart) timeLineChart.destroy();
+            timeLineChart = new Chart(document.getElementById('timeLineChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: filteredTrees.map((_, i) => `Tree ${i + 1}`),
+                    datasets: [{
+                        label: 'Harvest Time (min)',
+                        data: filteredTrees.map(t => t.time),
+                        borderColor: '#000000',
+                        backgroundColor: '#FFD700',
+                        fill: false,
+                        tension: 0.1
+                    }]
+                },
+                options: { scales: { y: { beginAtZero: true } } }
+            });
+
+
+            if (logLengthBarChart) logLengthBarChart.destroy();
+            const logLengthBins = [0, 5, 10, 15, 20].map((bin, i, arr) => {
+                return filteredTrees.filter(t => t.logLength >= bin && (i === arr.length - 1 || t.logLength < arr[i + 1])).length;
+            });
+            logLengthBarChart = new Chart(document.getElementById('logLengthBarChart').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: ['0-5m', '5-10m', '10-15m', '15-20m'],
+                    datasets: [{
+                        label: 'Number of Trees',
+                        data: logLengthBins,
+                        backgroundColor: '#FFD700',
+                        borderColor: '#000000',
+                        borderWidth: 1
+                    }]
+                },
+                options: { scales: { y: { beginAtZero: true } } }
+            });
+
+
+            if (driverBarChart) driverBarChart.destroy();
+            const driverEfficiency = filteredTrees.reduce((acc, t) => {
+                acc[t.driver] = (acc[t.driver] || { total: 0, count: 0 });
+                acc[t.driver].total += t.efficiency;
+                acc[t.driver].count += 1;
+                return acc;
+            }, {});
+            driverBarChart = new Chart(document.getElementById('driverBarChart').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(driverEfficiency),
+                    datasets: [{
+                        label: 'Avg Efficiency',
+                        data: Object.values(driverEfficiency).map(d => d.total / d.count),
+                        backgroundColor: '#FFD700',
+                        borderColor: '#000000',
+                        borderWidth: 1
+                    }]
+                },
+                options: { scales: { y: { beginAtZero: true } } }
+            });
+
+
+            if (effTimeScatterChart) effTimeScatterChart.destroy();
+            effTimeScatterChart = new Chart(document.getElementById('effTimeScatterChart').getContext('2d'), {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Efficiency vs Time',
+                        data: filteredTrees.map(t => ({ x: t.time, y: t.efficiency })),
+                        backgroundColor: '#FFD700',
+                        borderColor: '#000000',
+                        pointRadius: 5
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: { title: { display: true, text: 'Time (min)' } },
+                        y: { title: { display: true, text: 'Efficiency' }, beginAtZero: true }
+                    }
+                }
+            });
+
+
+            if (harvestPaceChart) harvestPaceChart.destroy();
+            const paceData = filteredTrees.map((t, i) => i === 0 ? 0 : 1 / (t.start - filteredTrees[i - 1].start));
+            harvestPaceChart = new Chart(document.getElementById('harvestPaceChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: filteredTrees.map((_, i) => `Tree ${i + 1}`),
+                    datasets: [{
+                        label: 'Trees per Minute',
+                        data: paceData,
+                        borderColor: '#000000',
+                        backgroundColor: '#FFD700',
+                        fill: false,
+                        tension: 0.3
+                    }]
+                },
+                options: { scales: { y: { beginAtZero: true, title: { display: true, text: 'Trees/Min' } } } }
+            });
+        }
+
+
+        function startSimulation() {
+            if (currentIndex >= filteredTrees.length) stopSimulation();
+            interval = setInterval(() => {
+                if (currentIndex >= filteredTrees.length) {
+                    clearInterval(interval);
+                    return;
+                }
+                treeMarkers[currentIndex].setIcon(L.icon({ iconUrl: 'https://leafletjs.com/examples/custom-icons/leaf-green.png', iconSize: [20, 20] }));
+                const tree = filteredTrees[currentIndex];
+                document.getElementById('current-tree').textContent = `${tree.species} (${tree.driver})`;
+                document.getElementById('progress-text').textContent = `${Math.round((currentIndex + 1) / filteredTrees.length * 100)}%`;
+                document.getElementById('progress-bar').style.width = `${(currentIndex + 1) / filteredTrees.length * 100}%`;
+                currentIndex++;
+            }, 1000 / simulationSpeed);
+        }
+
+
+        function pauseSimulation() {
+            if (interval) clearInterval(interval);
+        }
+
+
+        function stopSimulation() {
+            if (interval) clearInterval(interval);
+            currentIndex = 0;
+            document.getElementById('progress-text').textContent = '0%';
+            document.getElementById('progress-bar').style.width = '0%';
+            document.getElementById('current-tree').textContent = '-';
+            treeMarkers.forEach(marker => marker.setIcon(L.icon({ iconUrl: 'https://leafletjs.com/examples/custom-icons/leaf-red.png', iconSize: [20, 20] })));
+        }
+
+
+        function stepForward() {
+            if (currentIndex < filteredTrees.length) {
+                treeMarkers[currentIndex].setIcon(L.icon({ iconUrl: 'https://leafletjs.com/examples/custom-icons/leaf-green.png', iconSize: [20, 20] }));
+                const tree = filteredTrees[currentIndex];
+                document.getElementById('current-tree').textContent = `${tree.species} (${tree.driver})`;
+                document.getElementById('progress-text').textContent = `${Math.round((currentIndex + 1) / filteredTrees.length * 100)}%`;
+                document.getElementById('progress-bar').style.width = `${(currentIndex + 1) / filteredTrees.length * 100}%`;
+                currentIndex++;
+            }
+        }
+
+
+        function stepBackward() {
+            if (currentIndex > 0) {
+                currentIndex--;
+                treeMarkers[currentIndex].setIcon(L.icon({ iconUrl: 'https://leafletjs.com/examples/custom-icons/leaf-red.png', iconSize: [20, 20] }));
+                document.getElementById('current-tree').textContent = '-';
+                document.getElementById('progress-text').textContent = `${Math.round(currentIndex / filteredTrees.length * 100)}%`;
+                document.getElementById('progress-bar').style.width = `${(currentIndex) / filteredTrees.length * 100}%`;
+            }
+        }
+
+
+        function adjustSpeed(value) {
+            simulationSpeed = value;
+            if (interval) {
+                clearInterval(interval);
+                startSimulation();
+            }
+        }
+
+
+        function toggleEnlarge(container) {
+            if (container.classList.contains('enlarged')) {
+                container.classList.remove('enlarged');
+            } else {
+                document.querySelectorAll('.chart-container.enlarged').forEach(c => c.classList.remove('enlarged'));
+                container.classList.add('enlarged');
+            }
+        }
+
+
+        document.getElementById('csvUpload').addEventListener('change', loadCSV);
+    </script>
+</body>
+</html>
